@@ -1,4 +1,4 @@
-<!-- for aditya -->
+<!-- for feature branch -->
 
 [![Build Status](https://travis-ci.com/pulp-platform/riscv.svg?branch=master)](https://travis-ci.com/pulp-platform/riscv)
 
