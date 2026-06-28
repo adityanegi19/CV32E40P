@@ -26,3 +26,5 @@ cadence_conformal
 synopsys_formality
 questa_autocheck
 reports
+.DS_Store
+verilated_output/

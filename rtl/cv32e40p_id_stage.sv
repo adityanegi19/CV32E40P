@@ -251,7 +251,14 @@ module cv32e40p_id_stage
     output logic mhpmevent_pipe_stall_o,
 
     input logic        perf_imiss_i,
-    input logic [31:0] mcounteren_i
+    input logic [31:0] mcounteren_i,
+
+    // PIM sideband output
+    output logic        is_pim_o,
+    output logic [1:0]  pim_cmd_o,
+    output logic [5:0]  pim_imm1_o,
+    output logic [5:0]  pim_imm2_o
+
 );
 
   // Source/Destination register instruction index
@@ -1098,7 +1105,10 @@ module cv32e40p_id_stage
       .ctrl_transfer_target_mux_sel_o(ctrl_transfer_target_mux_sel),
 
       // HPM related control signals
-      .mcounteren_i(mcounteren_i)
+      .mcounteren_i(mcounteren_i),
+
+      // Connect PIM flag
+      .is_pim_o (is_pim_o)
 
   );
 
@@ -1279,7 +1289,17 @@ module cv32e40p_id_stage
       .wb_ready_i(wb_ready_i),
 
       // Performance Counters
-      .perf_pipeline_stall_o(perf_pipeline_stall)
+      .perf_pipeline_stall_o(perf_pipeline_stall),
+
+      // PIM Sideband Inputs
+      .is_pim_i       (is_pim_o),         // Wire coming from decoder_i
+      .instr_rdata_i  (instr),  // Raw instruction input to ID stage
+
+      // PIM Sideband Outputs (Routing out of ID stage)
+      .pim_cmd_o      (pim_cmd_o),
+      .pim_imm1_o     (pim_imm1_o),
+      .pim_imm2_o     (pim_imm2_o)
+
   );
 
 

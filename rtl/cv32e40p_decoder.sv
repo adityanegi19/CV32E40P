@@ -158,7 +158,11 @@ module cv32e40p_decoder
   output logic [1:0]  ctrl_transfer_target_mux_sel_o,        // jump target selection
 
   // HPM related control signals
-  input  logic [31:0] mcounteren_i
+  input  logic [31:0] mcounteren_i,
+
+  // PIM Sideband flag
+  output logic        is_pim_o
+
 );
 
   // write enable/request control
@@ -175,6 +179,8 @@ module cv32e40p_decoder
   logic       mult_int_en;
   logic       mult_dot_en;
   logic       apu_en;
+
+  logic       is_pim;
 
   // this instruction needs floating-point rounding-mode verification
   logic check_fprm;
@@ -290,6 +296,8 @@ module cv32e40p_decoder
     uret_dec_o                     = 1'b0;
     dret_dec_o                     = 1'b0;
 
+    is_pim = 1'b0; // Default to normal mode for all instructio
+
     unique case (instr_rdata_i[6:0])
 
       //////////////////////////////////////
@@ -402,6 +410,19 @@ module cv32e40p_decoder
           3'b000, 3'b100: data_type_o = 2'b10; // LB/LBU
           3'b001, 3'b101: data_type_o = 2'b01; // LH/LHU
           3'b010        : data_type_o = 2'b00; // LW
+          // --- PIM Extension Patch ---
+          3'b011: begin // add.p
+          data_type_o           = 2'b00;
+          data_sign_extension_o = 2'b01; // force sign-extend to match LW
+          is_pim              = 1'b1;
+          end
+
+          3'b110: begin // mul.p
+          data_type_o           = 2'b00;
+          data_sign_extension_o = 2'b01; // force sign-extend to match LW
+          is_pim                = 1'b1;
+          end
+          // ---------------------------
           default: begin
             illegal_insn_o = 1'b1;
           end
@@ -3004,6 +3025,9 @@ module cv32e40p_decoder
   assign hwlp_we_o                   = (deassert_we_i) ? 3'b0          : hwlp_we;
   assign csr_op_o                    = (deassert_we_i) ? CSR_OP_READ   : csr_op;
   assign ctrl_transfer_insn_in_id_o  = (deassert_we_i) ? BRANCH_NONE   : ctrl_transfer_insn;
+  // Locate where you drive is_pim_o at the bottom of cv32e40p_decoder.sv
+// Make sure it looks exactly like this:
+  assign is_pim_o = (deassert_we_i) ? 1'b0 : is_pim;
 
   assign ctrl_transfer_insn_in_dec_o  = ctrl_transfer_insn;
   assign regfile_alu_we_dec_o         = regfile_alu_we;

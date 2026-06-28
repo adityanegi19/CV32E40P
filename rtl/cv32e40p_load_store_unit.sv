@@ -68,6 +68,7 @@ module cv32e40p_load_store_unit #(
     // stall signal
     output logic lsu_ready_ex_o,  // LSU ready for new data in EX stage
     output logic lsu_ready_wb_o,  // LSU ready for new data in WB stage
+    output logic [31:0] pim_base_addr_o,
 
     output logic busy_o
 );
@@ -344,6 +345,8 @@ module cv32e40p_load_store_unit #(
 
   // generate address from operands
   assign data_addr_int = (addr_useincr_ex_i) ? (operand_a_ex_i + operand_b_ex_i) : operand_a_ex_i;
+
+  assign pim_base_addr_o = operand_a_ex_i;
 
   // Busy if there are ongoing (or potentially outstanding) transfers
   assign busy_o = (cnt_q != 2'b00) || trans_valid;

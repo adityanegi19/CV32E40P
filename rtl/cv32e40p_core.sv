@@ -97,7 +97,14 @@ module cv32e40p_core
 
     // CPU Control Signals
     input  logic fetch_enable_i,
-    output logic core_sleep_o
+    output logic core_sleep_o,
+
+    // PIM Sideband outputs to Memory Controller (Bypasses OBI)
+    output logic [1:0]  pim_cmd_o,
+    output logic [5:0]  pim_imm1_o,
+    output logic [5:0]  pim_imm2_o,
+    output logic [31:0] pim_base_addr_o
+
 );
 
   import cv32e40p_pkg::*;
@@ -356,6 +363,17 @@ module cv32e40p_core
   logic                           instr_gnt_pmp;
   logic [             31:0]       instr_addr_pmp;
   logic                           instr_err_pmp;
+
+  // PIM Interconnect Wires
+  logic [1:0]  pim_cmd;
+  logic [5:0]  pim_imm1;
+  logic [5:0]  pim_imm2;
+  logic        is_pim;
+
+  // Drive Core Ports
+  assign pim_cmd_o  = pim_cmd;
+  assign pim_imm1_o = pim_imm1;
+  assign pim_imm2_o = pim_imm2;
 
   // Mux selector for vectored IRQ PC
   assign m_exc_vec_pc_mux_id = (mtvec_mode == 2'b0) ? 5'h0 : exc_cause;
@@ -676,6 +694,8 @@ module cv32e40p_core
       .data_err_i          (data_err_pmp),
       .data_err_ack_o      (data_err_ack),
 
+      .is_pim_o (is_pim),
+
       // Interrupt Signals
       .irq_i         (irq_i),
       .irq_sec_i     ((PULP_SECURE) ? irq_sec_i : 1'b0),
@@ -729,6 +749,11 @@ module cv32e40p_core
       .mhpmevent_imiss_o       (mhpmevent_imiss),
       .mhpmevent_ld_stall_o    (mhpmevent_ld_stall),
       .mhpmevent_pipe_stall_o  (mhpmevent_pipe_stall),
+
+      // PIM Sideband Outputs routed to top-level core pins
+      .pim_cmd_o               (pim_cmd),
+      .pim_imm1_o              (pim_imm1),
+      .pim_imm2_o              (pim_imm2),
 
       .perf_imiss_i(perf_imiss),
       .mcounteren_i(mcounteren)
@@ -915,6 +940,7 @@ module cv32e40p_core
       .data_rdata_ex_o  (lsu_rdata),
       .data_req_ex_i    (data_req_ex),
       .operand_a_ex_i   (alu_operand_a_ex),
+      .pim_base_addr_o  (pim_base_addr_o),
       .operand_b_ex_i   (alu_operand_b_ex),
       .addr_useincr_ex_i(useincr_addr_ex),
 

@@ -198,7 +198,13 @@ module cv32e40p_controller import cv32e40p_pkg::*;
   input  logic        ex_valid_i,                 // EX stage is done
 
   input  logic        wb_ready_i,                 // WB stage is ready
-
+  // PIM sideband inputs (from decoder via ID stage)
+  input  logic        is_pim_i,      
+  input  logic [31:0] instr_rdata_i,
+  // PIM sideband outputs (connect directly to SRAM controller)
+  output logic [1:0]  pim_cmd_o,     
+  output logic [5:0]  pim_imm1_o,    
+  output logic [5:0]  pim_imm2_o,
   // Performance Counters
   output logic        perf_pipeline_stall_o       // stall due to cv.elw extra cycles
 );
@@ -242,6 +248,16 @@ module cv32e40p_controller import cv32e40p_pkg::*;
 
   // qualify wfi vs nosleep locally 
   logic wfi_active;
+
+  // PCU ID-stage combinational decode wires
+  logic [1:0]  pim_cmd_id;        
+  logic [5:0]  pim_imm1_id;       
+  logic [5:0]  pim_imm2_id;
+
+  // PCU ID/EX pipeline registers
+  logic [1:0]  pim_cmd_ex_q;
+  logic [5:0]  pim_imm1_ex_q;
+  logic [5:0]  pim_imm2_ex_q;
 
 
   ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1262,7 +1278,53 @@ module cv32e40p_controller import cv32e40p_pkg::*;
     endcase
   end
 
+  // Combinational Decode (ID Stage)
+  always_comb begin
+      pim_cmd_id   = 2'b00;
+      pim_imm1_id  = 6'b0;
+      pim_imm2_id  = 6'b0;
 
+      if (is_pim_i && instr_valid_i) begin
+          // Extract operand offsets from fixed bit positions mapped to prompt specification
+          pim_imm1_id = instr_rdata_i[31:26];   // imm6_1
+          pim_imm2_id = instr_rdata_i[25:20];   // imm6_2
+
+          // Map funct3 to pim_cmd
+          case (instr_rdata_i[14:12])
+              3'b011:  pim_cmd_id = 2'b01;   // add.p
+              3'b110:  pim_cmd_id = 2'b10;   // mul.p
+              default: pim_cmd_id = 2'b00;   // safety default
+          endcase
+      end
+  end
+
+  // PCU ID/EX pipeline register
+  // Note: Utilizing instr_valid_i mapping for standard CV32E40P controller logic
+  // --- REPLACE your PCU pipeline register block with this ---
+  always_ff @(posedge clk or negedge rst_n) begin
+      if (!rst_n) begin
+          pim_cmd_ex_q   <= 2'b00;
+          pim_imm1_ex_q  <= 6'b0;
+          pim_imm2_ex_q  <= 6'b0;
+      end else begin
+          if (pc_set_o) begin
+              // Flush: pipeline squashed, immediately mask out PIM commands
+              pim_cmd_ex_q   <= 2'b00;
+              pim_imm1_ex_q  <= 6'b0;
+              pim_imm2_ex_q  <= 6'b0;
+          end else if (id_valid_i) begin // STRICT SYNC: Replaces instr_valid_i && !halt_id_o
+              // Advance: safe to transition data across pipeline
+              pim_cmd_ex_q   <= pim_cmd_id;
+              pim_imm1_ex_q  <= pim_imm1_id;
+              pim_imm2_ex_q  <= pim_imm2_id;
+          end
+      end
+  end
+
+  // Output assignments to external SRAM controller
+  assign pim_cmd_o  = pc_set_o ? 2'b00 : pim_cmd_ex_q;
+  assign pim_imm1_o = pc_set_o ? 6'b0  : pim_imm1_ex_q;
+  assign pim_imm2_o = pc_set_o ? 6'b0  : pim_imm2_ex_q; 
 
 generate
   if(COREV_PULP) begin : gen_hwlp
